@@ -18,16 +18,15 @@ import net.runelite.client.config.ConfigManager;
  * Owns the purchase data for the current character and persists it in profile
  * scoped config, which syncs between PCs through the runelite.net account.
  *
- * The "recent" key holds a rolling buffer of the last {@link #RECENT_CAP}
- * buys, "tracked" holds starred items which are kept until unstarred, and the
- * "geslot" keys hold offer snapshots used to diff replayed login events.
+ * The "recent" key holds a rolling buffer whose size is set by
+ * {@link PricePaidConfig#recentCap()}, "tracked" holds starred items which are
+ * kept until unstarred, and the "geslot" keys hold offer snapshots used to diff
+ * replayed login events.
  */
 @Slf4j
 @Singleton
 public class PurchaseDataManager
 {
-	// how many purchases the recent feed keeps before rolling over
-	static final int RECENT_CAP = 200;
 	// nobody sane hits this, purely a guard against a duplication bug
 	static final int TRACKED_CAP = 500;
 	// per tracked item, older records collapse into carried totals past this
@@ -45,6 +44,7 @@ public class PurchaseDataManager
 	}.getType();
 
 	private final ConfigManager configManager;
+	private final PricePaidConfig config;
 	private final Gson gson;
 
 	private final Map<Integer, TrackedItem> tracked = new LinkedHashMap<>();
@@ -52,9 +52,10 @@ public class PurchaseDataManager
 	private final List<PurchaseRecord> recent = new ArrayList<>();
 
 	@Inject
-	private PurchaseDataManager(ConfigManager configManager, Gson gson)
+	private PurchaseDataManager(ConfigManager configManager, PricePaidConfig config, Gson gson)
 	{
 		this.configManager = configManager;
+		this.config = config;
 		this.gson = gson;
 	}
 
@@ -72,6 +73,7 @@ public class PurchaseDataManager
 				if (loaded != null)
 				{
 					recent.addAll(loaded);
+					trimRecent();
 				}
 			}
 			catch (JsonSyntaxException e)
@@ -152,10 +154,7 @@ public class PurchaseDataManager
 		PurchaseRecord record = new PurchaseRecord(itemId, itemName, quantity, spent, now, approximate);
 
 		recent.add(0, record);
-		while (recent.size() > RECENT_CAP)
-		{
-			recent.remove(recent.size() - 1);
-		}
+		trimRecent();
 
 		TrackedItem entry = tracked.get(itemId);
 		if (entry != null)
@@ -227,6 +226,15 @@ public class PurchaseDataManager
 		}
 	}
 
+	/** Trims the feed to the configured size and persists if anything was dropped. */
+	public synchronized void applyRecentCap()
+	{
+		if (trimRecent())
+		{
+			save();
+		}
+	}
+
 	public synchronized List<PurchaseRecord> getRecent()
 	{
 		return new ArrayList<>(recent);
@@ -238,6 +246,19 @@ public class PurchaseDataManager
 		List<TrackedItem> items = new ArrayList<>(tracked.values());
 		items.sort(Comparator.comparingLong(TrackedItem::lastPurchaseTime).reversed());
 		return items;
+	}
+
+	// drop the oldest buys past the configured feed size, newest are kept at the
+	// front; returns whether anything was dropped
+	private boolean trimRecent()
+	{
+		int cap = config.recentCap();
+		if (recent.size() <= cap)
+		{
+			return false;
+		}
+		recent.subList(cap, recent.size()).clear();
+		return true;
 	}
 
 	private void appendToTracked(TrackedItem entry, PurchaseRecord record)

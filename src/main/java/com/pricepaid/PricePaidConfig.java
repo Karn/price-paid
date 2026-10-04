@@ -3,12 +3,14 @@ package com.pricepaid;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Range;
 import net.runelite.client.config.Units;
 
 @ConfigGroup(PricePaidConfig.GROUP)
 public interface PricePaidConfig extends Config
 {
 	String GROUP = "pricepaid";
+	String RECENT_CAP = "recentCap";
 
 	@ConfigItem(
 		keyName = "autoStar",
@@ -42,5 +44,17 @@ public interface PricePaidConfig extends Config
 	default boolean absoluteDates()
 	{
 		return false;
+	}
+
+	@ConfigItem(
+		keyName = RECENT_CAP,
+		name = "Recent feed size",
+		description = "How many of your most recent purchases the Recent feed keeps before older ones roll off",
+		position = 4
+	)
+	@Range(min = 10, max = 1000)
+	default int recentCap()
+	{
+		return 200;
 	}
 }

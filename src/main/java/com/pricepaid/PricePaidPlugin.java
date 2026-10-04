@@ -12,6 +12,7 @@ import net.runelite.api.ItemComposition;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GrandExchangeOfferChanged;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
@@ -112,6 +113,16 @@ public class PricePaidPlugin extends Plugin
 		// switched character, or profile data just became available at login
 		dataManager.load();
 		panel.refresh();
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (PricePaidConfig.GROUP.equals(event.getGroup()) && PricePaidConfig.RECENT_CAP.equals(event.getKey()))
+		{
+			dataManager.applyRecentCap();
+			panel.refresh();
+		}
 	}
 
 	@Subscribe
